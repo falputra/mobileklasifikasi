@@ -1,5 +1,6 @@
+// screens/login_screen.dart - FIRESTORE VERSION
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../services/firestore_auth_service.dart';
 import 'register_screen.dart';
 import 'main_page.dart';
 import 'forgot_password_screen.dart';
@@ -11,7 +12,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final AuthService _authService = AuthService();
+  final FirestoreAuthService _authService = FirestoreAuthService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -32,26 +33,40 @@ class _LoginScreenState extends State<LoginScreen> {
       });
 
       try {
-        await _authService.signInWithEmailAndPassword(
+        final result = await _authService.loginUser(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
 
-        // Navigate to main page
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => MainPage()),
-        );
+        if (result['success'] == true) {
+          print('✅ Login successful');
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Login berhasil!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Navigate to main page
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => MainPage()),
+          );
+        }
       } catch (e) {
+        print('❌ Login error: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: Colors.red,
           ),
         );
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }

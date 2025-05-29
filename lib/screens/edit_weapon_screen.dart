@@ -4,14 +4,18 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../services/weapon_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:image/image.dart' as img; // Import library image
+import 'package:image/image.dart' as img;
 
-class AddWeaponScreen extends StatefulWidget {
+class EditWeaponScreen extends StatefulWidget {
+  final Map<String, dynamic> weapon;
+
+  EditWeaponScreen({required this.weapon});
+
   @override
-  _AddWeaponScreenState createState() => _AddWeaponScreenState();
+  _EditWeaponScreenState createState() => _EditWeaponScreenState();
 }
 
-class _AddWeaponScreenState extends State<AddWeaponScreen> {
+class _EditWeaponScreenState extends State<EditWeaponScreen> {
   final _formKey = GlobalKey<FormState>();
   final WeaponService _weaponService = WeaponService();
   final _nameController = TextEditingController();
@@ -21,6 +25,19 @@ class _AddWeaponScreenState extends State<AddWeaponScreen> {
   final _usageController = TextEditingController();
   bool _isLoading = false;
   File? _imageFile;
+  String? _currentImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize form dengan data weapon yang ada
+    _nameController.text = widget.weapon['name'] ?? '';
+    _originController.text = widget.weapon['origin'] ?? '';
+    _descriptionController.text = widget.weapon['description'] ?? '';
+    _usageController.text = widget.weapon['usage'] ?? '';
+    _currentImageUrl = widget.weapon['image'];
+    _imageController.text = _currentImageUrl ?? '';
+  }
 
   @override
   void dispose() {
@@ -34,7 +51,7 @@ class _AddWeaponScreenState extends State<AddWeaponScreen> {
 
   Future<File> _resizeImage(File imageFile) async {
     final originalImage = img.decodeImage(await imageFile.readAsBytes());
-    final resizedImage = img.copyResize(originalImage!, width: 800); // Ubah ukuran sesuai kebutuhan
+    final resizedImage = img.copyResize(originalImage!, width: 800);
     final resizedFile = File(imageFile.path)..writeAsBytesSync(img.encodeJpg(resizedImage));
     return resizedFile;
   }
@@ -46,51 +63,57 @@ class _AddWeaponScreenState extends State<AddWeaponScreen> {
     if (pickedFile != null) {
       setState(() {
         _imageFile = File(pickedFile.path);
-        _imageController.text = pickedFile.path; // Set the path to the controller
+        _imageController.text = 'Gambar baru dipilih: ${pickedFile.name}';
       });
     }
   }
 
-  Future<void> _addWeapon() async {
+  Future<void> _updateWeapon() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
 
       try {
-        // Resize image if necessary
-        if (_imageFile != null) {
-          _imageFile = await _resizeImage(_imageFile!);
-        }
+        String imageUrl = _currentImageUrl ?? '';
 
-        // Upload image to Firebase Storage
-        String imageUrl = await _uploadImageToFirebase(_imageFile!);
+        // Jika ada gambar baru yang dipilih, upload ke Firebase Storage
+        if (_imageFile != null) {
+          // Hapus gambar lama jika ada
+          if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) {
+            try {
+              await FirebaseStorage.instance.refFromURL(_currentImageUrl!).delete();
+            } catch (e) {
+              print('Error deleting old image: $e');
+              // Lanjutkan meskipun gagal hapus gambar lama
+            }
+          }
+
+          // Resize dan upload gambar baru
+          _imageFile = await _resizeImage(_imageFile!);
+          imageUrl = await _uploadImageToFirebase(_imageFile!);
+        }
 
         final weaponData = {
           'name': _nameController.text.trim(),
-          'image': imageUrl, // Use the URL from Firebase Storage
+          'image': imageUrl,
           'origin': _originController.text.trim(),
           'description': _descriptionController.text.trim(),
           'usage': _usageController.text.trim(),
-          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         };
 
-        await _weaponService.addWeapon(weaponData);
+        await _weaponService.updateWeapon(widget.weapon['id'], weaponData);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Senjata berhasil ditambahkan!'),
+            content: Text('Senjata berhasil diperbarui!'),
             backgroundColor: Colors.green,
           ),
         );
 
-        // Clear form
-        _nameController.clear();
-        _imageController.clear();
-        _originController.clear();
-        _descriptionController.clear();
-        _usageController.clear();
-        _imageFile = null; // Reset image file
+        // Kembali ke halaman sebelumnya
+        Navigator.pop(context);
 
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -109,17 +132,11 @@ class _AddWeaponScreenState extends State<AddWeaponScreen> {
 
   Future<String> _uploadImageToFirebase(File imageFile) async {
     try {
-      // Create a reference to the Firebase Storage
       final storageRef = FirebaseStorage.instance.ref();
-      // Create a unique file name
       String fileName = DateTime.now().millisecondsSinceEpoch.toString();
-      // Create a reference to the file location
       final imageRef = storageRef.child('weapons/$fileName.jpg');
 
-      // Upload the file
       await imageRef.putFile(imageFile);
-
-      // Get the download URL
       String downloadUrl = await imageRef.getDownloadURL();
       return downloadUrl;
     } catch (e) {
@@ -130,11 +147,11 @@ class _AddWeaponScreenState extends State<AddWeaponScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF021024), // Dark background theme
+      backgroundColor: Color(0xFF021024),
       appBar: AppBar(
-        backgroundColor: Color(0xFF052659), // Dark blue AppBar
+        backgroundColor: Color(0xFF052659),
         title: Text(
-          'Tambah Senjata',
+          'Edit Senjata',
           style: TextStyle(
             fontFamily: 'OpenSans',
             fontWeight: FontWeight.bold,
@@ -155,6 +172,66 @@ class _AddWeaponScreenState extends State<AddWeaponScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(height: 10),
+
+              // Current weapon info card
+              Container(
+                padding: EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Color(0xFF052659),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Color(0xFF7DA0CA)),
+                ),
+                child: Row(
+                  children: [
+                    // Current image preview
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: Color(0xFF0a3067),
+                      ),
+                      child: _currentImageUrl != null
+                          ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          _currentImageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(Icons.image_not_supported, color: Colors.white54);
+                          },
+                        ),
+                      )
+                          : Icon(Icons.image_not_supported, color: Colors.white54),
+                    ),
+                    SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mengedit: ${widget.weapon['name']}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            'Asal: ${widget.weapon['origin']}',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 30),
 
               // Name field
               Container(
@@ -196,7 +273,7 @@ class _AddWeaponScreenState extends State<AddWeaponScreen> {
                   controller: _imageController,
                   style: TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: 'Path Gambar',
+                    labelText: 'Gambar Senjata',
                     labelStyle: TextStyle(color: Colors.white70),
                     prefixIcon: Icon(Icons.image, color: Color(0xFF7DA0CA)),
                     suffixIcon: Container(
@@ -218,12 +295,6 @@ class _AddWeaponScreenState extends State<AddWeaponScreen> {
                     fillColor: Colors.transparent,
                   ),
                   readOnly: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Path gambar tidak boleh kosong';
-                    }
-                    return null;
-                  },
                 ),
               ),
               SizedBox(height: 20),
@@ -322,30 +393,58 @@ class _AddWeaponScreenState extends State<AddWeaponScreen> {
               ),
               SizedBox(height: 40),
 
-              // Submit button
-              Container(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _addWeapon,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF7DA0CA),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              // Action buttons
+              Row(
+                children: [
+                  // Cancel button
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _isLoading ? null : () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        side: BorderSide(color: Colors.white70),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 15),
+                      ),
+                      child: Text(
+                        'Batal',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
                     ),
                   ),
-                  child: _isLoading
-                      ? CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                    'Tambah Senjata',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontFamily: 'OpenSans',
+                  SizedBox(width: 15),
+                  // Update button
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _updateWeapon,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF7DA0CA),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 15),
+                      ),
+                      child: _isLoading
+                          ? CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                        'Perbarui Senjata',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
               SizedBox(height: 20),
             ],

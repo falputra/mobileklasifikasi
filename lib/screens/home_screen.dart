@@ -92,37 +92,41 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        children: [
-          SizedBox(height: 90),
-          Text(
-            'Welcome to\nKlasifikasi Senjata \nTradisional Jawa Barat',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'OpenSans',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 20),
+      child: Center(
+        child: Column(
+          children: [
+            // Kurangi jarak atas dari 90 menjadi 30
+            SizedBox(height: 30),
+            Text(
+              'Welcome to\nKlasifikasi Senjata \nTradisional Jawa Barat',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'OpenSans',
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
-          ),
-          SizedBox(height: 40),
-          Text(
-            'Masukkan gambar senjata tradisional\nJawa Barat untuk diklasifikasi',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'OpenSans',
-              fontSize: 14,
-              color: Colors.white70,
+            SizedBox(height: 40),
+            Text(
+              'Masukkan gambar senjata tradisional\nJawa Barat untuk diklasifikasi',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'OpenSans',
+                fontSize: 14,
+                color: Colors.white70,
+              ),
             ),
-          ),
-          SizedBox(height: 20),
-          CustomButton(
-            icon: Icons.image,
-            text: 'Pilih Gambar',
-            onPressed: () => _pickImage(context),
-          ),
-        ],
+            SizedBox(height: 20),
+            CustomButton(
+              icon: Icons.image,
+              text: 'Pilih Gambar',
+              onPressed: () => _pickImage(context),
+            ),
+          ],
+        ),
       ),
     );
   }

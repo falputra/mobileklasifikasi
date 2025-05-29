@@ -3,210 +3,261 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class WeaponService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _collection = 'weapons';
+  bool _initialized = false;
 
-  // Get all weapons with better error handling
+  // Method untuk menambah senjata baru
+  Future<void> addWeapon(Map<String, dynamic> weaponData) async {
+    try {
+      await _firestore.collection(_collection).add(weaponData);
+      print('✅ Weapon added successfully');
+    } catch (e) {
+      print('❌ Error adding weapon: $e');
+      throw Exception('Gagal menambahkan senjata: $e');
+    }
+  }
+
+  // Method untuk mengupdate senjata yang sudah ada
+  Future<void> updateWeapon(String weaponId, Map<String, dynamic> weaponData) async {
+    try {
+      await _firestore.collection(_collection).doc(weaponId).update(weaponData);
+      print('✅ Weapon updated successfully');
+    } catch (e) {
+      print('❌ Error updating weapon: $e');
+      throw Exception('Gagal memperbarui senjata: $e');
+    }
+  }
+
+  // Method untuk mendapatkan stream weapons
   Stream<List<Map<String, dynamic>>> getWeapons() {
     return _firestore
         .collection(_collection)
-        .orderBy('createdAt', descending: false) // Urutkan berdasarkan waktu dibuat
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data();
-        data['id'] = doc.id;
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id; // Tambahkan ID dokumen
         return data;
       }).toList();
     });
   }
 
-  // Get weapons as Future (untuk satu kali ambil data)
-  Future<List<Map<String, dynamic>>> getWeaponsOnce() async {
+  // Method untuk mendapatkan senjata berdasarkan ID
+  Future<Map<String, dynamic>?> getWeaponById(String weaponId) async {
     try {
-      final snapshot = await _firestore
-          .collection(_collection)
-          .orderBy('createdAt', descending: false)
-          .get();
-
-      return snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data();
-        data['id'] = doc.id;
-        return data;
-      }).toList();
-    } catch (e) {
-      throw Exception('Error fetching weapons: $e');
-    }
-  }
-
-  // Get single weapon by ID
-  Future<Map<String, dynamic>?> getWeaponById(String id) async {
-    try {
-      final doc = await _firestore.collection(_collection).doc(id).get();
+      final doc = await _firestore.collection(_collection).doc(weaponId).get();
       if (doc.exists) {
-        Map<String, dynamic> data = doc.data()!;
+        final data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
       }
       return null;
     } catch (e) {
-      throw Exception('Error fetching weapon: $e');
+      print('❌ Error getting weapon: $e');
+      throw Exception('Gagal mengambil data senjata: $e');
     }
   }
 
-  // Add new weapon
-  Future<String> addWeapon(Map<String, dynamic> weaponData) async {
+  // Method untuk menghapus senjata
+  Future<void> deleteWeapon(String weaponId) async {
     try {
-      // Tambahkan timestamp
-      weaponData['createdAt'] = FieldValue.serverTimestamp();
-      weaponData['updatedAt'] = FieldValue.serverTimestamp();
-
-      final docRef = await _firestore.collection(_collection).add(weaponData);
-      return docRef.id;
+      await _firestore.collection(_collection).doc(weaponId).delete();
+      print('✅ Weapon deleted successfully');
     } catch (e) {
-      throw Exception('Error adding weapon: $e');
+      print('❌ Error deleting weapon: $e');
+      throw Exception('Gagal menghapus senjata: $e');
     }
   }
 
-  // Update weapon
-  Future<void> updateWeapon(String id, Map<String, dynamic> weaponData) async {
+  // Method untuk search senjata berdasarkan nama dan lokasi
+  Future<List<Map<String, dynamic>>> searchWeapons(String query) async {
     try {
-      // Tambahkan timestamp update
-      weaponData['updatedAt'] = FieldValue.serverTimestamp();
+      // Ambil semua data senjata
+      final snapshot = await _firestore.collection(_collection).get();
 
-      await _firestore.collection(_collection).doc(id).update(weaponData);
-    } catch (e) {
-      throw Exception('Error updating weapon: $e');
-    }
-  }
-
-  // Delete weapon
-  Future<void> deleteWeapon(String id) async {
-    try {
-      await _firestore.collection(_collection).doc(id).delete();
-    } catch (e) {
-      throw Exception('Error deleting weapon: $e');
-    }
-  }
-
-  // Search weapons by name
-  Stream<List<Map<String, dynamic>>> searchWeapons(String query) {
-    return _firestore
-        .collection(_collection)
-        .where('name', isGreaterThanOrEqualTo: query)
-        .where('name', isLessThanOrEqualTo: query + '\uf8ff')
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data();
+      // Filter data berdasarkan query (nama atau lokasi)
+      final allWeapons = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
       }).toList();
-    });
-  }
 
-  // Get weapons count
-  Future<int> getWeaponsCount() async {
-    try {
-      final snapshot = await _firestore.collection(_collection).get();
-      return snapshot.docs.length;
+      // Lakukan pencarian lokal untuk nama dan lokasi
+      final filteredWeapons = allWeapons.where((weapon) {
+        final name = (weapon['name'] ?? '').toString().toLowerCase();
+        final origin = (weapon['origin'] ?? '').toString().toLowerCase();
+        final description = (weapon['description'] ?? '').toString().toLowerCase();
+        final usage = (weapon['usage'] ?? '').toString().toLowerCase();
+        final searchQuery = query.toLowerCase();
+
+        // Cari di nama, lokasi, deskripsi, dan kegunaan
+        return name.contains(searchQuery) ||
+            origin.contains(searchQuery) ||
+            description.contains(searchQuery) ||
+            usage.contains(searchQuery);
+      }).toList();
+
+      // Urutkan hasil berdasarkan relevansi (nama > lokasi > deskripsi > kegunaan)
+      filteredWeapons.sort((a, b) {
+        final nameA = (a['name'] ?? '').toString().toLowerCase();
+        final nameB = (b['name'] ?? '').toString().toLowerCase();
+        final originA = (a['origin'] ?? '').toString().toLowerCase();
+        final originB = (b['origin'] ?? '').toString().toLowerCase();
+        final searchQuery = query.toLowerCase();
+
+        // Prioritas: nama exact match > nama contains > origin exact match > origin contains
+        if (nameA == searchQuery) return -1;
+        if (nameB == searchQuery) return 1;
+        if (nameA.startsWith(searchQuery) && !nameB.startsWith(searchQuery)) return -1;
+        if (nameB.startsWith(searchQuery) && !nameA.startsWith(searchQuery)) return 1;
+        if (originA == searchQuery) return -1;
+        if (originB == searchQuery) return 1;
+
+        // Default sort by name
+        return nameA.compareTo(nameB);
+      });
+
+      return filteredWeapons;
     } catch (e) {
-      throw Exception('Error getting weapons count: $e');
+      print('❌ Error searching weapons: $e');
+      throw Exception('Gagal mencari senjata: $e');
     }
   }
 
-  // Check if collection exists and has data
-  Future<bool> hasData() async {
+  // Method untuk search berdasarkan multiple criteria
+  Future<List<Map<String, dynamic>>> searchWeaponsByCriteria({
+    String? name,
+    String? origin,
+    String? description,
+  }) async {
     try {
-      final snapshot = await _firestore.collection(_collection).limit(1).get();
-      return snapshot.docs.isNotEmpty;
+      Query query = _firestore.collection(_collection);
+
+      // Tambahkan filter berdasarkan criteria yang diberikan
+      if (name != null && name.isNotEmpty) {
+        query = query.where('name', isGreaterThanOrEqualTo: name)
+            .where('name', isLessThanOrEqualTo: name + '\uf8ff');
+      }
+
+      if (origin != null && origin.isNotEmpty) {
+        query = query.where('origin', isEqualTo: origin);
+      }
+
+      final snapshot = await query.get();
+
+      List<Map<String, dynamic>> results = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+
+      // Filter tambahan untuk deskripsi jika diperlukan
+      if (description != null && description.isNotEmpty) {
+        results = results.where((weapon) {
+          final weaponDesc = (weapon['description'] ?? '').toString().toLowerCase();
+          return weaponDesc.contains(description.toLowerCase());
+        }).toList();
+      }
+
+      return results;
     } catch (e) {
-      return false;
+      print('❌ Error searching weapons by criteria: $e');
+      throw Exception('Gagal mencari senjata berdasarkan kriteria: $e');
     }
   }
 
-  // Initialize with sample data (call this once)
+  // Method untuk inisialisasi data sample (hanya sekali)
   Future<void> initializeSampleData() async {
+    if (_initialized) return;
+
     try {
-      // Check if data already exists
-      final hasExistingData = await hasData();
-      if (hasExistingData) {
-        print('Sample data already exists, skipping initialization.');
+      // Cek apakah sudah ada data
+      final snapshot = await _firestore.collection(_collection).limit(1).get();
+      if (snapshot.docs.isNotEmpty) {
+        _initialized = true;
         return;
       }
 
+      // Data sample senjata tradisional Jawa Barat
       final sampleWeapons = [
         {
           'name': 'Kujang',
           'image': 'images/kujang.png',
           'origin': 'Jawa Barat',
-          'description': 'Kujang adalah senjata tradisional dari Jawa Barat yang berbentuk melengkung dengan ujung yang runcing. Bentuknya yang khas melambangkan keseimbangan alam dan kehidupan. Kujang memiliki nilai filosofis tinggi bagi masyarakat Sunda dan sering digunakan sebagai simbol identitas budaya.',
-          'usage': 'Dahulu Kujang digunakan sebagai senjata perang dan alat pertanian. Namun sekarang lebih banyak digunakan sebagai hiasan atau benda pusaka. Kujang juga sering dijadikan simbol dalam lambang daerah di Jawa Barat.',
+          'description': 'Kujang adalah senjata tradisional khas Jawa Barat yang memiliki bentuk unik menyerupai bulan sabit. Senjata ini tidak hanya berfungsi sebagai alat perang, tetapi juga memiliki nilai spiritual dan filosofis yang tinggi dalam budaya Sunda.',
+          'usage': 'Digunakan sebagai senjata perang, alat pertanian, dan simbol kekuasaan. Dalam kehidupan sehari-hari, kujang juga digunakan untuk memotong kayu dan bambu.',
           'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
         },
         {
           'name': 'Bedog',
           'image': 'images/bedog.png',
           'origin': 'Jawa Barat',
-          'description': 'Bedog adalah sejenis golok atau parang dari Jawa Barat yang memiliki bentuk pipih dan lebar. Bedog memiliki bilah yang tebal dan kokoh, dengan panjang sekitar 30-40 cm. Senjata ini memiliki gagang yang terbuat dari kayu atau tanduk.',
-          'usage': 'Bedog terutama digunakan sebagai alat kerja untuk memotong, menebang, atau membelah benda keras seperti kayu. Selain itu, Bedog juga digunakan sebagai alat pertanian dan juga dapat berfungsi sebagai senjata untuk membela diri.',
+          'description': 'Bedog adalah golok besar yang digunakan oleh masyarakat Sunda. Bentuknya yang lebar dan berat membuatnya sangat efektif untuk berbagai keperluan. Bedog memiliki gagang yang kuat dan mata pisau yang tajam.',
+          'usage': 'Digunakan untuk memotong kayu, membersihkan lahan, dan sebagai senjata untuk pertahanan diri. Juga digunakan dalam upacara adat tertentu.',
           'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
         },
         {
           'name': 'Golok',
           'image': 'images/golok.jpg',
           'origin': 'Jawa Barat',
-          'description': 'Golok adalah senjata tradisional berbentuk parang dengan bilah yang lebar dan tebal. Golok khas Jawa Barat memiliki bentuk yang sedikit melengkung pada bagian ujungnya. Sarungnya biasanya terbuat dari kayu dan diukir dengan motif-motif tradisional.',
-          'usage': 'Golok digunakan untuk berbagai keperluan seperti membuka jalan di hutan, memotong kayu, sebagai alat pertanian, dan juga sebagai senjata untuk membela diri. Di beberapa daerah, Golok juga digunakan dalam upacara adat tertentu.',
+          'description': 'Golok adalah pisau besar yang umum digunakan di Jawa Barat. Memiliki mata pisau yang lebar dan tajam dengan gagang yang ergonomis. Golok merupakan alat yang sangat praktis dalam kehidupan sehari-hari masyarakat Sunda.',
+          'usage': 'Digunakan untuk keperluan dapur, pertanian, dan sebagai alat potong serba guna. Juga dapat digunakan sebagai senjata untuk pertahanan diri.',
           'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
         },
         {
           'name': 'Patik',
           'image': 'images/patik.webp',
           'origin': 'Jawa Barat',
-          'description': 'Patik adalah senjata tajam tradisional dari Jawa Barat yang bentuknya mirip pisau kecil dengan bilah yang lurus dan tajam pada satu sisi. Ukurannya lebih kecil dari golok atau bedog. Patik memiliki gagang yang biasanya terbuat dari kayu atau tanduk.',
-          'usage': 'Senjata ini digunakan untuk keperluan sehari-hari seperti mengolah hasil pertanian, memotong tali, dan pekerjaan halus lainnya. Selain itu, patik juga bisa digunakan sebagai senjata untuk membela diri dalam jarak dekat.',
+          'description': 'Patik adalah senjata tradisional berupa pisau kecil yang digunakan oleh masyarakat Sunda. Meskipun berukuran kecil, patik memiliki ketajaman yang luar biasa dan mudah dibawa kemana-mana.',
+          'usage': 'Digunakan sebagai alat potong kecil, pisau saku, dan untuk keperluan sehari-hari yang membutuhkan alat tajam berukuran kecil.',
           'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
         },
         {
           'name': 'Congkrang',
           'image': 'images/congkrang.webp',
           'origin': 'Jawa Barat',
-          'description': 'Congkrang adalah senjata tradisional yang bentuknya mirip arit atau sabit dengan bilah melengkung dan tajam pada bagian dalamnya. Congkrang memiliki gagang yang biasanya terbuat dari kayu.',
-          'usage': 'Senjata ini utamanya digunakan sebagai alat pertanian untuk memotong rumput, memanen padi, dan membersihkan semak belukar. Dalam situasi darurat, congkrang juga bisa digunakan sebagai senjata untuk membela diri.',
+          'description': 'Congkrang adalah senjata tradisional yang memiliki bentuk unik dengan mata pisau yang melengkung. Senjata ini memiliki fungsi ganda sebagai alat dan senjata, dengan desain yang memudahkan penggunaan.',
+          'usage': 'Digunakan untuk memotong tumbuhan, sebagai alat pertanian, dan dapat dijadikan senjata untuk pertahanan diri dalam situasi darurat.',
           'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        {
-          'name': 'Ani-ani (Ketam)',
-          'image': 'images/aniani.webp',
-          'origin': 'Jawa Barat',
-          'description': 'ani-ani atau ketam adalah alat tradisional yang digunakan khusus untuk memanen padi. Meskipun lebih tepat dikategorikan sebagai perkakas pertanian daripada senjata, ani-ani memiliki bagian tajam yang berbentuk seperti pisau kecil yang terpasang pada pegangan kayu.',
-          'usage': 'Ani-ani digunakan dengan cara menggenggam batang padi dan memotongnya satu per satu, metode yang dianggap lebih menghormati Dewi Sri (dewi padi) dalam kepercayaan tradisional. Penggunaan ani-ani memungkinkan pemanenan yang selektif dan meminimalkan kerusakan tanaman.',
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        {
-          'name': 'Sulimat',
-          'image': 'images/sulimat.jpg',
-          'origin': 'Jawa Barat',
-          'description': 'Sulimat adalah senjata rahasia dari Jawa Barat yang bentuknya mirip dengan jarum atau pisau kecil yang sangat tajam. Ukurannya kecil sehingga mudah disembunyikan, biasanya di dalam pakaian atau aksesori.',
-          'usage': 'Sulimat digunakan sebagai senjata tikam jarak dekat dalam situasi membela diri atau pertarungan. Karena ukurannya yang kecil, sulimat sering digunakan sebagai senjata rahasia atau cadangan oleh para pendekar tradisional.',
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
         },
       ];
 
-      // Add sample data
-      for (var weapon in sampleWeapons) {
-        await _firestore.collection(_collection).add(weapon);
+      // Tambahkan data sample ke Firestore
+      for (final weapon in sampleWeapons) {
+        await addWeapon(weapon);
       }
 
-      print('Sample data initialized successfully!');
+      _initialized = true;
+      print('✅ Sample data initialized successfully');
     } catch (e) {
-      throw Exception('Error initializing sample data: $e');
+      print('❌ Error initializing sample data: $e');
     }
+  }
+
+  // Method untuk mendapatkan jumlah total senjata
+  Future<int> getTotalWeaponsCount() async {
+    try {
+      final snapshot = await _firestore.collection(_collection).get();
+      return snapshot.docs.length;
+    } catch (e) {
+      print('❌ Error getting weapons count: $e');
+      return 0;
+    }
+  }
+
+  // Method untuk mendapatkan senjata berdasarkan origin
+  Stream<List<Map<String, dynamic>>> getWeaponsByOrigin(String origin) {
+    return _firestore
+        .collection(_collection)
+        .where('origin', isEqualTo: origin)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    });
   }
 }

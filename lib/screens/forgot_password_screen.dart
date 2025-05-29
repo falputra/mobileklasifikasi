@@ -1,5 +1,6 @@
+// screens/forgot_password_screen.dart - FIRESTORE VERSION
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../services/firestore_auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   @override
@@ -8,7 +9,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final AuthService _authService = AuthService();
+  final FirestoreAuthService _authService = FirestoreAuthService();
   final _emailController = TextEditingController();
 
   bool _isLoading = false;
@@ -28,21 +29,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       try {
         await _authService.resetPassword(_emailController.text.trim());
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Email reset password telah dikirim!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        Navigator.pop(context);
-      } catch (error) { // Ganti 'e' dengan 'error'
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.toString()), // Ganti 'e' dengan 'error'
-            backgroundColor: Colors.red,
-          ),
-        );
+        // The exception thrown contains the temporary password
+        // This is just for demo - in real app, you'd send email
+      } catch (error) {
+        if (error.toString().contains('Password reset berhasil')) {
+          // Success case - show the temporary password
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error.toString().replaceAll('Exception: ', '')),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 10), // Show longer for temp password
+            ),
+          );
+          Navigator.pop(context);
+        } else {
+          // Error case
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error.toString().replaceAll('Exception: ', '')),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       } finally {
         setState(() {
           _isLoading = false;
@@ -102,7 +110,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               SizedBox(height: 15),
 
               Text(
-                'Masukkan email Anda untuk menerima\nlink reset password',
+                'Masukkan email Anda untuk mendapatkan\npassword sementara baru',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -111,7 +119,43 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               ),
 
-              SizedBox(height: 40),
+              SizedBox(height: 20),
+
+              // Warning card
+              Container(
+                padding: EdgeInsets.all(15),
+                margin: EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: Color(0xFF7DA0CA).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Color(0xFF7DA0CA)),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFF7DA0CA), size: 30),
+                    SizedBox(height: 10),
+                    Text(
+                      'Demo Mode',
+                      style: TextStyle(
+                        color: Color(0xFF7DA0CA),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      'Password sementara akan ditampilkan di layar. Dalam aplikasi nyata, password akan dikirim via email.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 20),
 
               // Form
               Form(
@@ -168,7 +212,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         child: _isLoading
                             ? CircularProgressIndicator(color: Colors.white)
                             : Text(
-                          'Kirim Reset Password',
+                          'Reset Password',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,

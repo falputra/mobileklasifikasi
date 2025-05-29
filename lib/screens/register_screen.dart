@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../services/firestore_auth_service.dart';
 import 'main_page.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -9,7 +9,7 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final AuthService _authService = AuthService();
+  final FirestoreAuthService _authService = FirestoreAuthService();
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -35,34 +35,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
 
       try {
-        await _authService.signUpWithEmailAndPassword(
+        // PERBAIKAN: Gunakan registerUser bukan signUpWithEmailAndPassword
+        final result = await _authService.registerUser(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
           fullName: _fullNameController.text.trim(),
         );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Akun berhasil dibuat!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Akun berhasil dibuat!'),
+              backgroundColor: Colors.green,
+            ),
+          );
 
-        // Navigate to main page
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => MainPage()),
-        );
+          // Navigate to main page
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => MainPage()),
+          );
+        }
       } catch (error) {
+        print('❌ Registration error: $error');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error.toString()),
+            content: Text(error.toString().replaceAll('Exception: ', '')),
             backgroundColor: Colors.red,
           ),
         );
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }

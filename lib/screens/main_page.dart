@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'weapon_screen.dart';
 import 'profile_screen.dart';
-import '../services/auth_service.dart';
+import 'users_screen.dart';
+import '../services/firestore_auth_service.dart';
 import 'login_screen.dart';
 
 class MainPage extends StatefulWidget {
@@ -11,11 +12,12 @@ class MainPage extends StatefulWidget {
 }
 
 class MainPageState extends State<MainPage> {
-  final AuthService _authService = AuthService();
+  final FirestoreAuthService _authService = FirestoreAuthService();
 
   final List<Widget> pages = [
     HomeScreen(),
     WeaponScreen(),
+    UsersScreen(),
     ProfileScreen(),
   ];
 
@@ -28,16 +30,18 @@ class MainPageState extends State<MainPage> {
   }
 
   void _checkAuthStatus() {
-    // Listen to auth state changes
-    _authService.authStateChanges.listen((user) {
-      if (user == null && mounted) {
-        // User is signed out, redirect to login
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => LoginScreen()),
-              (route) => false,
-        );
-      }
-    });
+    // PERBAIKAN: FirestoreAuthService tidak punya authStateChanges
+    // Gunakan periodic check atau hapus method ini
+    // Untuk sementara, kita comment dulu
+
+    // _authService.authStateChanges.listen((user) {
+    //   if (user == null && mounted) {
+    //     Navigator.of(context).pushAndRemoveUntil(
+    //       MaterialPageRoute(builder: (context) => LoginScreen()),
+    //           (route) => false,
+    //     );
+    //   }
+    // });
   }
 
   void onTap(int index) {
@@ -51,22 +55,19 @@ class MainPageState extends State<MainPage> {
     return Scaffold(
       backgroundColor: const Color(0xff021024),
       body: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            // Halaman konten
-            IndexedStack(
-              index: selectedIndex,
-              children: pages,
-            ),
-            // Navigation bar di bawah
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 20,
-              child: CustomNavBar(
-                selectedIndex: selectedIndex,
-                onTap: onTap,
+            // Halaman konten - menggunakan Expanded agar mengisi ruang yang tersisa
+            Expanded(
+              child: IndexedStack(
+                index: selectedIndex,
+                children: pages,
               ),
+            ),
+            // Navigation bar di bawah - menempel langsung tanpa margin
+            CustomNavBar(
+              currentIndex: selectedIndex,
+              onTap: onTap,
             ),
           ],
         ),
@@ -75,53 +76,64 @@ class MainPageState extends State<MainPage> {
   }
 }
 
-// Custom Navigation Bar Widget
+// Custom Navigation Bar Widget - Dihilangkan shadow dan rounded corner
 class CustomNavBar extends StatelessWidget {
-  final int selectedIndex;
+  final int currentIndex;
   final Function(int) onTap;
 
   const CustomNavBar({
     Key? key,
-    required this.selectedIndex,
+    required this.currentIndex,
     required this.onTap,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20),
-      padding: EdgeInsets.symmetric(vertical: 12),
+      height: 70,
+      width: double.infinity, // Mengisi lebar penuh
       decoration: BoxDecoration(
         color: Color(0xFF052659),
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 10,
-            offset: Offset(0, 5),
-          ),
-        ],
+        // Hilangkan borderRadius agar menempel sempurna ke bawah
+        // borderRadius: BorderRadius.only(
+        //   topLeft: Radius.circular(20),
+        //   topRight: Radius.circular(20),
+        // ),
+        // Hilangkan shadow agar tidak menganggu
+        // boxShadow: [
+        //   BoxShadow(
+        //     color: Colors.black26,
+        //     blurRadius: 10,
+        //     offset: Offset(0, -2),
+        //   ),
+        // ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildNavItem(
             icon: Icons.home,
             label: 'Home',
             index: 0,
-            isSelected: selectedIndex == 0,
+            isSelected: currentIndex == 0,
           ),
           _buildNavItem(
-            icon: Icons.security,
-            label: 'Weapon',
+            icon: Icons.add_circle_outline,
+            label: 'Add Weapon',
             index: 1,
-            isSelected: selectedIndex == 1,
+            isSelected: currentIndex == 1,
+          ),
+          _buildNavItem(
+            icon: Icons.people,
+            label: 'Users',
+            index: 2,
+            isSelected: currentIndex == 2,
           ),
           _buildNavItem(
             icon: Icons.person,
             label: 'Profile',
-            index: 2,
-            isSelected: selectedIndex == 2,
+            index: 3,
+            isSelected: currentIndex == 3,
           ),
         ],
       ),
@@ -137,12 +149,12 @@ class CustomNavBar extends StatelessWidget {
     return GestureDetector(
       onTap: () => onTap(index),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected ? Color(0xFF7DA0CA) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
@@ -150,17 +162,15 @@ class CustomNavBar extends StatelessWidget {
               color: Colors.white,
               size: 24,
             ),
-            if (isSelected) ...[
-              SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+            SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
-            ],
+            ),
           ],
         ),
       ),

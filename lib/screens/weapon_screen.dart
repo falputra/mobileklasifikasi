@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'weapon_detail_screen.dart';
 import 'add_weapon_screen.dart';
+import 'edit_weapon_screen.dart'; // Import screen edit yang baru
 import '../services/weapon_service.dart';
 import 'weapon_search_delegate.dart';
 
@@ -25,7 +26,8 @@ class _WeaponScreenState extends State<WeaponScreen> {
       backgroundColor: Color(0xff021024),
       body: Column(
         children: [
-          SizedBox(height: 50),
+          // Kurangi jarak atas dari 50 menjadi 20
+          SizedBox(height: 20),
 
           // Top bar with title and action buttons
           Padding(
@@ -85,7 +87,8 @@ class _WeaponScreenState extends State<WeaponScreen> {
             ),
           ),
 
-          SizedBox(height: 30),
+          // Kurangi jarak dari 30 menjadi 15
+          SizedBox(height: 15),
 
           // Weapons list from Firebase
           Expanded(
@@ -154,26 +157,13 @@ class _WeaponScreenState extends State<WeaponScreen> {
                   );
                 }
 
-                return SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Horizontal scrolling weapon cards
-                      Container(
-                        height: 350,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          padding: EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: weapons.length,
-                          itemBuilder: (context, index) {
-                            return _buildWeaponCard(context, weapons[index]);
-                          },
-                        ),
-                      ),
-
-                      SizedBox(height: 20),
-                    ],
-                  ),
+                // Vertical scrolling weapon list
+                return ListView.builder(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: weapons.length,
+                  itemBuilder: (context, index) {
+                    return _buildWeaponCard(context, weapons[index], index);
+                  },
                 );
               },
             ),
@@ -183,94 +173,155 @@ class _WeaponScreenState extends State<WeaponScreen> {
     );
   }
 
-  // Widget for individual weapon card
-  Widget _buildWeaponCard(BuildContext context, Map<String, dynamic> weapon) {
+  // Widget for individual weapon card - modified with edit button
+  Widget _buildWeaponCard(BuildContext context, Map<String, dynamic> weapon, int index) {
     return Container(
-      width: 180,
-      margin: EdgeInsets.only(right: 15),
+      margin: EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
         color: Color(0xFF052659),
         borderRadius: BorderRadius.circular(15),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Weapon image
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
-              child: Container(
-                width: double.infinity,
-                color: Color(0xFF052659),
+      child: Padding(
+        padding: EdgeInsets.all(15),
+        child: Row(
+          children: [
+            // Weapon image
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Color(0xFF0a3067),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
                 child: Image.asset(
                   weapon['image'] ?? 'images/placeholder.png',
-                  fit: BoxFit.contain,
+                  fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Icon(
                       Icons.image_not_supported,
+                      color: Colors.white54,
+                      size: 40,
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            SizedBox(width: 15),
+
+            // Weapon details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Weapon name
+                  Text(
+                    weapon['name'] ?? 'Unknown',
+                    style: TextStyle(
+                      fontFamily: 'OpenSans',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      size: 50,
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-
-          // Weapon name
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Text(
-              weapon['name'] ?? 'Unknown',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'OpenSans',
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-
-          // Action buttons
-          Padding(
-            padding: const EdgeInsets.only(bottom: 15),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // See more button
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => WeaponDetailScreen(weapon: weapon),
-                      ),
-                    );
-                  },
-                  child: Text('Detail'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF7DA0CA),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
                     ),
-                    padding: EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                    minimumSize: Size(60, 32),
                   ),
-                ),
 
-                // Delete button
-                IconButton(
-                  onPressed: () => _showDeleteDialog(weapon),
-                  icon: Icon(Icons.delete, color: Colors.red, size: 20),
-                  constraints: BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
-              ],
+                  SizedBox(height: 8),
+
+                  // Weapon origin (if available)
+                  if (weapon['origin'] != null)
+                    Text(
+                      weapon['origin'],
+                      style: TextStyle(
+                        fontFamily: 'OpenSans',
+                        fontSize: 14,
+                        color: Colors.white70,
+                      ),
+                    ),
+
+                  SizedBox(height: 15),
+
+                  // Action buttons - now with 3 buttons
+                  Row(
+                    children: [
+                      // Detail button
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => WeaponDetailScreen(weapon: weapon),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            'Detail',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF7DA0CA),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            minimumSize: Size(0, 32),
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(width: 8),
+
+                      // Edit button
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => EditWeaponScreen(weapon: weapon),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            'Edit',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            minimumSize: Size(0, 32),
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(width: 8),
+
+                      // Delete button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: IconButton(
+                          onPressed: () => _showDeleteDialog(weapon),
+                          icon: Icon(Icons.delete, color: Colors.red, size: 18),
+                          constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

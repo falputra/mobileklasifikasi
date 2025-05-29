@@ -1,5 +1,6 @@
+// screens/profile_screen.dart - FIRESTORE VERSION
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../services/firestore_auth_service.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -8,7 +9,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final AuthService _authService = AuthService();
+  final FirestoreAuthService _authService = FirestoreAuthService();
   Map<String, dynamic>? userData;
   bool _isLoading = true;
 
@@ -27,12 +28,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      final data = await _authService.getUserData();
+      // Get current user data from Firestore Auth Service
+      userData = _authService.currentUserData;
+
+      if (userData == null && _authService.currentUserId != null) {
+        // If current data is null, try to fetch from Firestore
+        userData = await _authService.getUserData(_authService.currentUserId!);
+      }
+
       setState(() {
-        userData = data;
         _isLoading = false;
       });
     } catch (e) {
+      print('❌ Error loading user data: $e');
       setState(() {
         _isLoading = false;
       });
@@ -62,7 +70,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: () async {
                 Navigator.pop(context);
                 try {
-                  await _authService.signOut();
+                  await _authService.logout();
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (context) => LoginScreen()),
                         (route) => false,
@@ -77,6 +85,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 }
               },
               child: Text('Logout', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEditProfile() {
+    final nameController = TextEditingController(text: userData?['fullName'] ?? '');
+    final phoneController = TextEditingController(text: userData?['phoneNumber'] ?? '');
+    final addressController = TextEditingController(text: userData?['address'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF052659),
+          title: Text(
+            'Edit Profile',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Nama Lengkap',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white70),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFF7DA0CA)),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 15),
+                TextFormField(
+                  controller: phoneController,
+                  style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Nomor Telepon',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white70),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFF7DA0CA)),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 15),
+                TextFormField(
+                  controller: addressController,
+                  style: TextStyle(color: Colors.white),
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'Alamat',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white70),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFF7DA0CA)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Batal', style: TextStyle(color: Colors.white70)),
+            ),
+            TextButton(
+              onPressed: () async {
+                try {
+                  await _authService.updateUserProfile(
+                    fullName: nameController.text.trim(),
+                    phoneNumber: phoneController.text.trim(),
+                    address: addressController.text.trim(),
+                  );
+
+                  Navigator.pop(context);
+                  _loadUserData(); // Refresh data
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Profile berhasil diupdate!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: Text('Simpan', style: TextStyle(color: Color(0xFF7DA0CA))),
             ),
           ],
         );
@@ -103,7 +217,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(height: 50),
+            // Kurangi jarak atas dari 50 menjadi 20
+            SizedBox(height: 0),
 
             // Header dengan info user dan logout button
             Row(
@@ -118,10 +233,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: Colors.white,
                   ),
                 ),
-                IconButton(
-                  onPressed: _logout,
-                  icon: Icon(Icons.logout, color: Colors.red),
-                  tooltip: 'Logout',
+                Row(
+                  children: [
+                    // Edit button
+                    IconButton(
+                      onPressed: _showEditProfile,
+                      icon: Icon(Icons.edit, color: Color(0xFF7DA0CA)),
+                      tooltip: 'Edit Profile',
+                    ),
+                    // Logout button
+                    IconButton(
+                      onPressed: _logout,
+                      icon: Icon(Icons.logout, color: Colors.red),
+                      tooltip: 'Logout',
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -171,6 +297,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: Colors.white70,
                       ),
                     ),
+                    if (userData!['phoneNumber'] != null && userData!['phoneNumber'].toString().isNotEmpty) ...[
+                      SizedBox(height: 5),
+                      Text(
+                        userData!['phoneNumber'],
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white60,
+                        ),
+                      ),
+                    ],
                     SizedBox(height: 10),
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -179,10 +315,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        'Logged In',
+                        'User ID: ${userData!['userId']}',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
