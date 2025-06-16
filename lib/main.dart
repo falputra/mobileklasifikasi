@@ -1,4 +1,3 @@
-// main.dart - FIRESTORE AUTH VERSION LENGKAP
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -50,11 +49,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
+    print('🎬 AuthWrapper initState - Starting splash screen...');
     _checkAuthState();
   }
 
   Future<void> _checkAuthState() async {
     try {
+      print('⏰ Splash screen showing - waiting 3 seconds...');
+
+      // TAMBAHKAN DELAY UNTUK SPLASH SCREEN - INI YANG PENTING!
+      await Future.delayed(Duration(seconds: 3));
+
+      print('🔄 Splash screen finished - checking auth...');
+
       // Initialize auth service
       await _authService.initializeAuth();
 
@@ -68,6 +75,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
         _isLoggedIn = isLoggedIn;
         _isLoading = false;
       });
+
+      print('✅ Auth check completed - navigating to next screen');
+
     } catch (e) {
       print('❌ Error checking auth state: $e');
       setState(() {
@@ -77,18 +87,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
-  // TAMBAHKAN BUILD METHOD INI:
   @override
   Widget build(BuildContext context) {
+    print('🎨 AuthWrapper build - _isLoading: $_isLoading');
+
     if (_isLoading) {
+      print('📱 Showing SplashScreen');
       return SplashScreen();
     }
 
     if (_isLoggedIn) {
-      print('🔍 DEBUG - Showing MainPage');
+      print('🏠 Navigating to MainPage');
       return MainPage();
     } else {
-      print('🔍 DEBUG - Showing LoginScreen');
+      print('🔐 Navigating to LoginScreen');
       return LoginScreen();
     }
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
 import '../services/weapon_service.dart';
 import 'weapon_detail_screen.dart';
 
@@ -16,13 +17,23 @@ class WeaponSearchDelegate extends SearchDelegate {
         backgroundColor: Color(0xFF052659),
         foregroundColor: Colors.white,
         elevation: 0,
+        toolbarHeight: 56,
       ),
       inputDecorationTheme: InputDecorationTheme(
         hintStyle: TextStyle(color: Colors.white70),
+        border: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        enabledBorder: InputBorder.none,
       ),
       textTheme: TextTheme(
-        titleLarge: TextStyle(color: Colors.white, fontSize: 18),
+        titleLarge: TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.normal,
+        ),
       ),
+      // Fix untuk search field
+      scaffoldBackgroundColor: Color(0xFF052659),
     );
   }
 
@@ -51,38 +62,51 @@ class WeaponSearchDelegate extends SearchDelegate {
       return _buildEmptyState('Masukkan kata kunci pencarian');
     }
 
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _weaponService.searchWeapons(query.trim()),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7DA0CA)),
-            ),
-          );
-        }
+    return Container(
+      color: Color(0xFF021024),
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _weaponService.searchWeapons(query.trim()),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7DA0CA)),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Mencari "$query"...',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
-        if (snapshot.hasError) {
-          return _buildErrorState('Error: ${snapshot.error}');
-        }
+          if (snapshot.hasError) {
+            return _buildErrorState('Error: ${snapshot.error}');
+          }
 
-        final weapons = snapshot.data ?? [];
+          final weapons = snapshot.data ?? [];
 
-        if (weapons.isEmpty) {
-          return _buildEmptyState('Tidak ditemukan senjata dengan kata kunci "$query"');
-        }
+          if (weapons.isEmpty) {
+            return _buildEmptyState('Tidak ditemukan senjata dengan kata kunci "$query"');
+          }
 
-        return Container(
-          color: Color(0xFF021024),
-          child: ListView.builder(
+          return ListView.builder(
             padding: EdgeInsets.all(20),
             itemCount: weapons.length,
             itemBuilder: (context, index) {
               return _buildSearchResultCard(context, weapons[index]);
             },
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -91,17 +115,205 @@ class WeaponSearchDelegate extends SearchDelegate {
     if (query.trim().isEmpty) {
       return Container(
         color: Color(0xFF021024),
-        child: Column(
-          children: [
-            SizedBox(height: 40),
-            SizedBox(height: 30),
-          ],
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(40),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.search,
+                  color: Colors.white54,
+                  size: 80,
+                ),
+                SizedBox(height: 20),
+                Text(
+                  'Cari Senjata Tradisional',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Ketik nama senjata atau asal daerah',
+                  style: TextStyle(
+                    color: Colors.white60,
+                    fontSize: 16,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 30),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF052659).withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Tips Pencarian:',
+                        style: TextStyle(
+                          color: Color(0xFF7DA0CA),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      _buildSearchTip('🔍', 'Cari berdasarkan nama', 'Contoh: "Kujang", "Golok"'),
+                      _buildSearchTip('📍', 'Cari berdasarkan daerah', 'Contoh: "Jawa Barat", "Sunda"'),
+                      _buildSearchTip('📝', 'Cari berdasarkan deskripsi', 'Kata kunci dalam deskripsi'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
 
     // Show real-time search results as user types
     return buildResults(context);
+  }
+
+  Widget _buildSearchTip(String emoji, String title, String description) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text(
+            emoji,
+            style: TextStyle(fontSize: 16),
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.white60,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to build weapon image with Base64 support
+  Widget _buildWeaponImage(String? imageData, String? imageType) {
+    // If no image data or empty, show placeholder
+    if (imageData == null || imageData.isEmpty) {
+      return Container(
+        color: Color(0xFF0a3067),
+        child: Icon(
+          Icons.inventory_2_outlined,
+          color: Colors.white54,
+          size: 30,
+        ),
+      );
+    }
+
+    // Check if it's Base64 image
+    if (imageType == 'base64') {
+      try {
+        final bytes = base64Decode(imageData);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error loading Base64 image: $error');
+            return Container(
+              color: Color(0xFF0a3067),
+              child: Icon(
+                Icons.broken_image,
+                color: Colors.white54,
+                size: 30,
+              ),
+            );
+          },
+        );
+      } catch (e) {
+        print('Error decoding Base64 image: $e');
+        return Container(
+          color: Color(0xFF0a3067),
+          child: Icon(
+            Icons.broken_image,
+            color: Colors.white54,
+            size: 30,
+          ),
+        );
+      }
+    }
+
+    // Check if it's a network URL (from Firebase Storage)
+    if (imageData.startsWith('http')) {
+      return Image.network(
+        imageData,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7DA0CA)),
+                strokeWidth: 2,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading network image: $error');
+          return Container(
+            color: Color(0xFF0a3067),
+            child: Icon(
+              Icons.broken_image,
+              color: Colors.white54,
+              size: 30,
+            ),
+          );
+        },
+      );
+    } else {
+      // Fallback to asset image (for old data or local images)
+      return Image.asset(
+        imageData,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading asset image: $error');
+          return Container(
+            color: Color(0xFF0a3067),
+            child: Icon(
+              Icons.image_not_supported,
+              color: Colors.white54,
+              size: 30,
+            ),
+          );
+        },
+      );
+    }
   }
 
   Widget _buildSearchResultCard(BuildContext context, Map<String, dynamic> weapon) {
@@ -123,23 +335,7 @@ class WeaponSearchDelegate extends SearchDelegate {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: weapon['image'] != null
-                ? Image.network(
-              weapon['image'],
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(
-                  Icons.image_not_supported,
-                  color: Colors.white54,
-                  size: 30,
-                );
-              },
-            )
-                : Icon(
-              Icons.security,
-              color: Colors.white54,
-              size: 30,
-            ),
+            child: _buildWeaponImage(weapon['image'], weapon['imageType']),
           ),
         ),
         title: Text(
@@ -270,49 +466,6 @@ class WeaponSearchDelegate extends SearchDelegate {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildTipItem(String title, String subtitle) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            margin: EdgeInsets.only(top: 6),
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: Color(0xFF7DA0CA),
-              shape: BoxShape.circle,
-            ),
-          ),
-          SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

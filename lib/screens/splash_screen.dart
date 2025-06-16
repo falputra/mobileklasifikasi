@@ -26,18 +26,23 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo atau gambar app
+            // Logo
             Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: Color(0xFF7DA0CA),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.security,
-                size: 60,
-                color: Colors.white,
+              width: 80,
+              height: 80,
+              child: Image.asset(
+                'images/swords.png', // Ganti dengan path gambar swords Anda
+                width: 80,
+                height: 80,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback jika gambar tidak ditemukan
+                  return Icon(
+                    Icons.security,
+                    size: 40,
+                    color: Colors.white,
+                  );
+                },
               ),
             ),
             SizedBox(height: 30),

@@ -89,14 +89,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Container(
                 width: 80,
                 height: 80,
-                decoration: BoxDecoration(
-                  color: Color(0xFF7DA0CA),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.person_add,
-                  size: 40,
-                  color: Colors.white,
+                child: Image.asset(
+                  'images/swords.png', // Ganti dengan path gambar swords Anda
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback jika gambar tidak ditemukan
+                    return Icon(
+                      Icons.security,
+                      size: 40,
+                      color: Colors.white,
+                    );
+                  },
                 ),
               ),
 

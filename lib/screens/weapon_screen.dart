@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'weapon_detail_screen.dart';
 import 'add_weapon_screen.dart';
-import 'edit_weapon_screen.dart'; // Import screen edit yang baru
+import 'edit_weapon_screen.dart';
 import '../services/weapon_service.dart';
 import 'weapon_search_delegate.dart';
 
@@ -16,8 +19,22 @@ class _WeaponScreenState extends State<WeaponScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize sample data on first run
-    _weaponService.initializeSampleData();
+    // Disabled sample data initialization for Firebase version
+    // _weaponService.initializeSampleData();
+
+    // TAMBAHKAN INI SEMENTARA UNTUK CLEANUP (HAPUS SETELAH TESTING):
+    // _cleanupData();
+  }
+
+  // Method untuk cleanup data (hapus setelah testing berhasil)
+  Future<void> _cleanupData() async {
+    try {
+      print('🔄 Cleaning up all weapons data...');
+      await _weaponService.deleteAllWeapons();
+      print('✅ All weapons data cleaned up');
+    } catch (e) {
+      print('❌ Error cleaning up data: $e');
+    }
   }
 
   @override
@@ -26,7 +43,6 @@ class _WeaponScreenState extends State<WeaponScreen> {
       backgroundColor: Color(0xff021024),
       body: Column(
         children: [
-          // Kurangi jarak atas dari 50 menjadi 20
           SizedBox(height: 20),
 
           // Top bar with title and action buttons
@@ -87,7 +103,6 @@ class _WeaponScreenState extends State<WeaponScreen> {
             ),
           ),
 
-          // Kurangi jarak dari 30 menjadi 15
           SizedBox(height: 15),
 
           // Weapons list from Firebase
@@ -95,10 +110,26 @@ class _WeaponScreenState extends State<WeaponScreen> {
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _weaponService.getWeapons(),
               builder: (context, snapshot) {
+                // Debug print
+                print('🔍 StreamBuilder state: ${snapshot.connectionState}');
+                print('🔍 Has error: ${snapshot.hasError}');
+                print('🔍 Error: ${snapshot.error}');
+                print('🔍 Data length: ${snapshot.data?.length ?? 0}');
+
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7DA0CA)),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7DA0CA)),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Loading weapons...',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      ],
                     ),
                   );
                 }
@@ -118,6 +149,13 @@ class _WeaponScreenState extends State<WeaponScreen> {
                           'Error: ${snapshot.error}',
                           style: TextStyle(color: Colors.white),
                           textAlign: TextAlign.center,
+                        ),
+                        SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {}); // Refresh
+                          },
+                          child: Text('Retry'),
                         ),
                       ],
                     ),
@@ -173,7 +211,7 @@ class _WeaponScreenState extends State<WeaponScreen> {
     );
   }
 
-  // Widget for individual weapon card - modified with edit button
+  // Widget for individual weapon card - with proper image handling
   Widget _buildWeaponCard(BuildContext context, Map<String, dynamic> weapon, int index) {
     return Container(
       margin: EdgeInsets.only(bottom: 20),
@@ -185,7 +223,7 @@ class _WeaponScreenState extends State<WeaponScreen> {
         padding: EdgeInsets.all(15),
         child: Row(
           children: [
-            // Weapon image
+            // Weapon image with proper network/asset handling
             Container(
               width: 100,
               height: 100,
@@ -195,17 +233,7 @@ class _WeaponScreenState extends State<WeaponScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  weapon['image'] ?? 'images/placeholder.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Icon(
-                      Icons.image_not_supported,
-                      color: Colors.white54,
-                      size: 40,
-                    );
-                  },
-                ),
+                child: _buildWeaponImage(weapon['image'], weapon['imageType']),
               ),
             ),
 
@@ -242,7 +270,7 @@ class _WeaponScreenState extends State<WeaponScreen> {
 
                   SizedBox(height: 15),
 
-                  // Action buttons - now with 3 buttons
+                  // Action buttons
                   Row(
                     children: [
                       // Detail button
@@ -324,6 +352,191 @@ class _WeaponScreenState extends State<WeaponScreen> {
         ),
       ),
     );
+  }
+
+  // Helper method to build weapon image with local storage support
+  Widget _buildWeaponImage(String? imageData, String? imageType) {
+    // If no image data or empty, show placeholder
+    if (imageData == null || imageData.isEmpty) {
+      return Container(
+        color: Color(0xFF0a3067),
+        child: Icon(
+          Icons.inventory_2_outlined,
+          color: Colors.white54,
+          size: 40,
+        ),
+      );
+    }
+
+    // Check if it's local storage image
+    if (imageType == 'local') {
+      return FutureBuilder<File?>(
+        future: _getLocalImageFile(imageData),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Container(
+              color: Color(0xFF0a3067),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7DA0CA)),
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          if (snapshot.hasData && snapshot.data != null) {
+            return Image.file(
+              snapshot.data!,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                print('Error loading local image: $error');
+                return Container(
+                  color: Color(0xFF0a3067),
+                  child: Icon(
+                    Icons.broken_image,
+                    color: Colors.white54,
+                    size: 40,
+                  ),
+                );
+              },
+            );
+          } else {
+            // File not found or error
+            return Container(
+              color: Color(0xFF0a3067),
+              child: Icon(
+                Icons.image_not_supported,
+                color: Colors.white54,
+                size: 40,
+              ),
+            );
+          }
+        },
+      );
+    }
+
+    // Check if it's Base64 image
+    if (imageType == 'base64') {
+      try {
+        final bytes = base64Decode(imageData);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error loading Base64 image: $error');
+            return Container(
+              color: Color(0xFF0a3067),
+              child: Icon(
+                Icons.broken_image,
+                color: Colors.white54,
+                size: 40,
+              ),
+            );
+          },
+        );
+      } catch (e) {
+        print('Error decoding Base64 image: $e');
+        return Container(
+          color: Color(0xFF0a3067),
+          child: Icon(
+            Icons.broken_image,
+            color: Colors.white54,
+            size: 40,
+          ),
+        );
+      }
+    }
+
+    // Check if it's a network URL (from Firebase Storage)
+    if (imageData.startsWith('http')) {
+      return Image.network(
+        imageData,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7DA0CA)),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading network image: $error');
+          return Container(
+            color: Color(0xFF0a3067),
+            child: Icon(
+              Icons.broken_image,
+              color: Colors.white54,
+              size: 40,
+            ),
+          );
+        },
+      );
+    } else {
+      // Fallback to asset image (for old data or local images)
+      return Image.asset(
+        imageData,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading asset image: $error');
+          return Container(
+            color: Color(0xFF0a3067),
+            child: Icon(
+              Icons.image_not_supported,
+              color: Colors.white54,
+              size: 40,
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  // Get local image file from relative path
+  Future<File?> _getLocalImageFile(String relativePath) async {
+    try {
+      // Try app documents directory first
+      try {
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final fullPath = '${appDocDir.path}/$relativePath';
+        final file = File(fullPath);
+
+        if (await file.exists()) {
+          print('✅ Local image found in app documents: $fullPath');
+          return file;
+        }
+      } catch (e) {
+        print('⚠️ Error accessing app documents directory: $e');
+      }
+
+      // Fallback: try temporary directory
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final fullPath = '${tempDir.path}/$relativePath';
+        final file = File(fullPath);
+
+        if (await file.exists()) {
+          print('✅ Local image found in temp directory: $fullPath');
+          return file;
+        }
+      } catch (e) {
+        print('⚠️ Error accessing temp directory: $e');
+      }
+
+      print('❌ Local image not found: $relativePath');
+      return null;
+    } catch (e) {
+      print('❌ Error getting local image: $e');
+      return null;
+    }
   }
 
   void _showDeleteDialog(Map<String, dynamic> weapon) {
